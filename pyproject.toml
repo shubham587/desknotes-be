@@ -1,0 +1,26 @@
+[project]
+name = "desknotes-backend"
+version = "0.1.0"
+description = "DeskNotes backend — photos of desk/whiteboard writing into searchable notes"
+requires-python = ">=3.9"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "python-multipart>=0.0.9",
+    "bcrypt>=4.1",
+    "pyjwt>=2.8",
+    "httpx>=0.27",
+    "pillow>=10.0",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.6"]
+
+[tool.ruff]
+target-version = "py39"
+
+[tool.ruff.lint]
+# B008: Depends/File/Form in defaults IS the FastAPI idiom.
+# UP045/UP006/UP007: new union/generic syntax breaks FastAPI signatures on 3.9.
+ignore = ["B008", "UP006", "UP007", "UP045", "DTZ011"]
