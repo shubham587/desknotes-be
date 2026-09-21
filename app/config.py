@@ -17,6 +17,16 @@ MEDIA_DIR = DATA_DIR / "media"
 # without it the app can't reach the database.
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+# Browser origins allowed to call the API (comma-separated). Add the deployed
+# frontend URL in production; defaults cover local dev.
+ALLOWED_ORIGINS = [
+    o.strip()
+    for o in os.getenv(
+        "ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173"
+    ).split(",")
+    if o.strip()
+]
+
 # Single seeded account (Phase 0 — no signup).
 SEED_USER = os.getenv("DESKNOTES_USER", "admin")
 SEED_PASSWORD = os.getenv("DESKNOTES_PASSWORD", "admin")
