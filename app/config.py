@@ -12,7 +12,10 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 
 DATA_DIR = Path(os.getenv("DESKNOTES_DATA_DIR", Path(__file__).parent.parent / "data"))
 MEDIA_DIR = DATA_DIR / "media"
-DB_PATH = DATA_DIR / "desknotes.db"
+
+# Postgres (Supabase). Use the Session-pooler URI. Required in production;
+# without it the app can't reach the database.
+DATABASE_URL = os.getenv("DATABASE_URL", "")
 
 # Single seeded account (Phase 0 — no signup).
 SEED_USER = os.getenv("DESKNOTES_USER", "admin")
