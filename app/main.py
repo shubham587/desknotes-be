@@ -5,9 +5,8 @@ Run: uv run uvicorn app.main:app --reload
 
 from __future__ import annotations
 
-import uuid
+import io
 from datetime import date
-from pathlib import Path
 from typing import Optional
 
 import httpx
@@ -17,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from pydantic import BaseModel
 
-from . import config, transcribe
+from . import config, storage, transcribe
 from .auth import current_user, make_token, seed_account, verify_password
 from .db import Repo, init_db
 
@@ -151,12 +150,12 @@ class MermaidIn(BaseModel):
 @app.post("/mermaid")
 def diagram_to_mermaid(body: MermaidIn, user: str = Depends(current_user)):
     """Convert a stored diagram crop to Mermaid code. Opt-in, non-destructive."""
-    name = Path(body.image_path).name  # avoid path traversal
-    path = config.MEDIA_DIR / name
-    if not path.exists():
+    try:
+        image_bytes = storage.fetch_media(body.image_path)
+    except FileNotFoundError:
         raise HTTPException(404, "Image not found")
     try:
-        return {"mermaid": transcribe.to_mermaid(path.read_bytes())}
+        return {"mermaid": transcribe.to_mermaid(image_bytes)}
     except httpx.HTTPStatusError as e:
         raise HTTPException(
             502, f"Diagram conversion failed ({e.response.status_code})."
@@ -280,14 +279,15 @@ def add_list_item(list_id: int, body: ListItemCreate, user: str = Depends(curren
 
 
 # ---------- capture (Phase 1) ----------
-def _crop_diagram(img_path: Path, bbox: list) -> str:
-    """Crop a diagram region from the original photo, save it, return media path.
+def _crop_diagram(raw: bytes, bbox: list) -> str:
+    """Crop a diagram region from the original photo bytes, upload it, return
+    its public URL.
 
     bbox may be fractions (0..1) of image size (preferred, scale-independent) or
     legacy pixels. Pads ~8% and clamps; falls back to the full image if the box
     is degenerate — better to show the whole photo than a wrong crop.
     """
-    with Image.open(img_path) as im:
+    with Image.open(io.BytesIO(raw)) as im:
         W, H = im.size
         try:
             x, y, w, h = (float(v) for v in bbox)
@@ -299,9 +299,9 @@ def _crop_diagram(img_path: Path, bbox: list) -> str:
             region = im if right - left < 20 or bottom - top < 20 else im.crop((left, top, right, bottom))
         except (ValueError, TypeError):
             region = im  # bad bbox -> keep the whole photo
-        name = f"{uuid.uuid4().hex}.png"
-        region.save(config.MEDIA_DIR / name)
-    return f"/media/{name}"
+        buf = io.BytesIO()
+        region.save(buf, format="PNG")
+    return storage.upload_media(buf.getvalue(), "image/png")
 
 
 async def _process(files: list[UploadFile]) -> dict:
@@ -317,10 +317,8 @@ async def _process(files: list[UploadFile]) -> dict:
     for f in files:
         raw = await f.read()
         # keep the original photo (trust feature)
-        orig_name = f"{uuid.uuid4().hex}_{f.filename or 'photo'}"
-        orig_path = config.MEDIA_DIR / orig_name
-        orig_path.write_bytes(raw)
-        saved_originals.append(f"/media/{orig_name}")
+        orig_url = storage.upload_media(raw, f.content_type or "image/jpeg")
+        saved_originals.append(orig_url)
 
         try:
             result = transcribe.transcribe(raw)
@@ -350,7 +348,7 @@ async def _process(files: list[UploadFile]) -> dict:
                     {
                         "type": "image",
                         "content": "",
-                        "image_path": _crop_diagram(orig_path, b.bbox),
+                        "image_path": _crop_diagram(raw, b.bbox),
                     }
                 )
             else:
@@ -390,9 +388,9 @@ async def capture(
 @app.post("/upload")
 async def upload(file: UploadFile = File(...), user: str = Depends(current_user)):
     """Store a pasted/dropped file (e.g. an image) and return its media URL."""
-    name = f"{uuid.uuid4().hex}_{file.filename or 'file'}"
-    (config.MEDIA_DIR / name).write_bytes(await file.read())
-    return {"url": f"/media/{name}"}
+    raw = await file.read()
+    url = storage.upload_media(raw, file.content_type or "application/octet-stream")
+    return {"url": url}
 
 
 @app.post("/notes/{doc_id}/append")

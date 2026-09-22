@@ -17,6 +17,16 @@ MEDIA_DIR = DATA_DIR / "media"
 # without it the app can't reach the database.
 DATABASE_URL = os.getenv("DATABASE_URL", "")
 
+# Supabase Storage — where captured photos / cropped diagrams are uploaded.
+# SUPABASE_URL is the project's base URL (e.g. https://xxxx.supabase.co).
+# SUPABASE_SERVICE_ROLE_KEY is server-side only (Project Settings -> API) —
+# never send it to the frontend. Without these, uploads fall back to local
+# disk (MEDIA_DIR), which is fine for dev but ephemeral on most hosts.
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "media")
+STORAGE_ENABLED = bool(SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY)
+
 # Browser origins allowed to call the API (comma-separated). Add the deployed
 # frontend URL in production; defaults cover local dev.
 ALLOWED_ORIGINS = [
