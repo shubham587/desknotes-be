@@ -96,6 +96,13 @@ def _get_pool() -> ConnectionPool:
             max_size=5,
             kwargs={"row_factory": dict_row},
             open=False,
+            # Supabase's pooler silently closes idle backend connections; without
+            # `check`, a stale one stays in our pool and the next request 500s
+            # with "server closed the connection unexpectedly". check_connection
+            # pings before handing a connection out and transparently reopens a
+            # dead one. max_idle recycles connections before they go stale.
+            check=ConnectionPool.check_connection,
+            max_idle=120,
         )
         _pool.open()
     return _pool
